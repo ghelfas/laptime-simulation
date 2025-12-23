@@ -43,6 +43,7 @@ def main(track_opts: dict,
     requirements_path = os.path.join(repo_path, 'requirements.txt')
     dependencies = []
 
+    '''
     with open(requirements_path, 'r') as fh:
         line = fh.readline()
 
@@ -52,6 +53,7 @@ def main(track_opts: dict,
 
     # check dependencies
     pkg_resources.require(dependencies)
+    '''
 
     # ------------------------------------------------------------------------------------------------------------------
     # INITIALIZATION ---------------------------------------------------------------------------------------------------
