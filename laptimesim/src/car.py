@@ -20,26 +20,21 @@ class Car(object):
     # SLOTS ------------------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------
 
-    __slots__ = ("__powertrain_type",
-                 "__pars_general",
-                 "__pars_engine",
-                 "__pars_gearbox",
-                 "__pars_tires",
-                 "__f_z_calc_stat")
+    __slots__ = ("__powertrain_type", "__pars_general", "__pars_engine",
+                 "__pars_gearbox", "pars_tires", "__f_z_calc_stat")
 
     # ------------------------------------------------------------------------------------------------------------------
     # CONSTRUCTOR ------------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------
 
-    def __init__(self, powertrain_type: str, pars_general: dict, pars_engine: dict, pars_gearbox: dict,
-                 pars_tires: dict):
+    def __init__(self, powertrain_type: str, pars_general: dict, pars_engine: dict, pars_gearbox: dict, pars_tires: dict):
         self.powertrain_type = powertrain_type
         self.pars_general = pars_general
         self.pars_engine = pars_engine
         self.pars_gearbox = pars_gearbox
         self.pars_tires = pars_tires
 
-        # calculate static parts of tire load calculation
+        # Calculate static parts of tire load calculation.
         self.f_z_calc_stat = {}
 
         g = self.pars_general["g"]
@@ -47,28 +42,28 @@ class Car(object):
         l_tot = self.pars_general["lf"] + self.pars_general["lr"]
         h_cog = self.pars_general["h_cog"]
 
-        # static load
+        # Static load.
         self.f_z_calc_stat["stat_load"] = np.zeros(4)
         self.f_z_calc_stat["stat_load"][0] = 0.5 * m * g * self.pars_general["lr"] / l_tot
         self.f_z_calc_stat["stat_load"][1] = 0.5 * m * g * self.pars_general["lr"] / l_tot
         self.f_z_calc_stat["stat_load"][2] = 0.5 * m * g * self.pars_general["lf"] / l_tot
         self.f_z_calc_stat["stat_load"][3] = 0.5 * m * g * self.pars_general["lf"] / l_tot
 
-        # longitudinal load transfer
+        # Longitudinal load transfer.
         self.f_z_calc_stat["trans_long"] = np.zeros(4)
         self.f_z_calc_stat["trans_long"][0] = 0.5 * m * h_cog / l_tot
         self.f_z_calc_stat["trans_long"][1] = 0.5 * m * h_cog / l_tot
         self.f_z_calc_stat["trans_long"][2] = 0.5 * m * h_cog / l_tot
         self.f_z_calc_stat["trans_long"][3] = 0.5 * m * h_cog / l_tot
 
-        # lateral load transfer
+        # Lateral load transfer.
         self.f_z_calc_stat["trans_lat"] = np.zeros(4)
         self.f_z_calc_stat["trans_lat"][0] = m * self.pars_general["lr"] / l_tot * h_cog / self.pars_general["sf"]
         self.f_z_calc_stat["trans_lat"][1] = m * self.pars_general["lr"] / l_tot * h_cog / self.pars_general["sf"]
         self.f_z_calc_stat["trans_lat"][2] = m * self.pars_general["lf"] / l_tot * h_cog / self.pars_general["sr"]
         self.f_z_calc_stat["trans_lat"][3] = m * self.pars_general["lf"] / l_tot * h_cog / self.pars_general["sr"]
 
-        # aero downforce
+        # Aero downforce.
         self.f_z_calc_stat["aero"] = np.zeros(4)
         self.f_z_calc_stat["aero"][0] = 0.5 * 0.5 * self.pars_general["c_z_a_f"] * self.pars_general["rho_air"]
         self.f_z_calc_stat["aero"][1] = 0.5 * 0.5 * self.pars_general["c_z_a_f"] * self.pars_general["rho_air"]
@@ -109,15 +104,11 @@ class Car(object):
 
     def tire_force_pots(self, vel: float, a_x: float, a_y: float, mu: float) -> tuple:
         """
-        The function is used to calculate the transmitted tire forces depending on the current longitudinal and lateral
-        accelerations and velocity.
-        Velocity input in m/s, accelerations in m/s^2. Calculates the currently acting tire loads f_z (considering
-        dynamic load transfers) and the force potentials f_t of all four tires. Vehicle coordinate system: x - front,
-        y - left, z - up. The tire model includes the reduction of the force potential with rising tire loads as
-        tire_par2 are negativ.
+        The function is used to calculate the transmitted tire forces depending on the current longitudinal and lateral accelerations and velocity.
+        Velocity input in m/s, accelerations in m/s^2. Calculates the currently acting tire loads f_z (considering dynamic load transfers) and the force potentials f_t of all four tires. Vehicle coordinate system: x - front, y - left, z - up. The tire model includes the reduction of the force potential with rising tire loads as tire_par2 are negative.
         """
 
-        # tire load calculation: static load, longitudinal load transfer, lateral load transfer, aero downforce
+        # Tire load calculation: static load, longitudinal load transfer, laterl load transfer, aero downforce.
         f_z_fl = (self.f_z_calc_stat["stat_load"][0]
                   - a_x * self.f_z_calc_stat["trans_long"][0]
                   - a_y * self.f_z_calc_stat["trans_lat"][0]
@@ -135,13 +126,9 @@ class Car(object):
                   + a_y * self.f_z_calc_stat["trans_lat"][3]
                   + math.pow(vel, 2) * self.f_z_calc_stat["aero"][3])
 
-        # check tire loads
+        # Check tire loads.
         """
-        Commented since it often happens with the FB+ solver that very high lateral accelerations and therefore tire
-        loads appear when it runs into a corner, i.e. a high curvature. As the tires limit the lateral acceleration due
-        to their limited force potential afterwards this is usually not a problem. Use the lateral acceleration plot
-        and the tire loads plot at the end of the calculation to check the validity of the lateral accelerations
-        appearing.
+        Commented since it often happens with the FB+ solver that very high lateral accelerations and therefore tire loads appear when it urns into a corner, i.e. a high curvature. As the tires limit the lateral acceleration due to their limited force potential afterwards this is usually not a problem. Use the lateral acceleration plot and the tire loads plot at the end of the calculation to check the validity of the lateral accelerations appearing.
         """
 
         if f_z_fl < 30.0:
@@ -157,12 +144,13 @@ class Car(object):
             # print("WARNING: Very small tire load RR!")
             f_z_rr = 30.0
 
-        # tire force potentials (dmux_dfz and dmuy_dfz are negativ -> quadratic malus in the force)
+        # Tire force potentials (dmux_dfz and dmuy_dfz are negative -> quadratic malus in the force).
         """
         The function is derived as follows:
         F_x = mu_weather/track * mu_tire(F_z) * F_z (mu_tire hereby not constant as it decreases with rising tire loads)
-            = mu_weather/track * (mu_tire + dmu_tire/dF_z * (F_z - F_z0)) * F_z (dmu_tire/dF_z is negative)
+            = mu_weather/track * (mu_tire + dmu_tire/dF_z * (F_z - F_z0)) * F_z (dmu_tire/dF_z is negative).
         """
+
         f_x_pot_fl = mu * (self.pars_tires["f"]["mux"]
                            + self.pars_tires["f"]["dmux_dfz"] * (f_z_fl - self.pars_tires["f"]["fz_0"])) * f_z_fl
         f_y_pot_fl = mu * (self.pars_tires["f"]["muy"]
@@ -189,7 +177,8 @@ class Car(object):
                 f_x_pot_rr, f_y_pot_rr, f_z_rr)
 
     def plot_tire_characteristics(self) -> None:
-        # calculate relevant data
+
+        # Calculate relevant data.
         f_z_range = np.arange(500.0, 13000.0, 500.0)
 
         f_x_f = (self.pars_tires["f"]["mux"]
@@ -201,7 +190,7 @@ class Car(object):
         f_y_r = (self.pars_tires["r"]["muy"]
                  + self.pars_tires["r"]["dmuy_dfz"] * (f_z_range - self.pars_tires["r"]["fz_0"])) * f_z_range
 
-        # plot
+        # Plot.
         plt.figure()
 
         plt.plot(f_z_range, f_x_f)
@@ -218,7 +207,9 @@ class Car(object):
         plt.show()
 
     def __circumref_driven_tire(self, vel: float) -> float:
-        """Velocity input in m/s. Reference speed for the circumreference calculation is 60 km/h. Output is in m."""
+        """
+        Velocity input in m/s. Reference speed for the circumreference calculation is 60 km/h. Output is in m.
+        """
 
         if self.pars_engine["topology"] == "FWD":
             tire_circ_ref = self.pars_tires["f"]["circ_ref"]
@@ -227,7 +218,7 @@ class Car(object):
             tire_circ_ref = self.pars_tires["r"]["circ_ref"]
 
         elif self.pars_engine["topology"] == "AWD":
-            # use average circumreference in this case
+            # Use average circumreference in this case.
             tire_circ_ref = 0.5 * (self.pars_tires["f"]["circ_ref"] + self.pars_tires["r"]["circ_ref"])
 
         else:
@@ -236,14 +227,18 @@ class Car(object):
         return tire_circ_ref * (1 + (vel * 3.6 - 60.0) * (0.045 / 200.0))
 
     def r_driven_tire(self, vel: float) -> float:
-        """Velocity input in m/s. Output is in m."""
+        """
+        Velocity input in m/s. Outpu is in m.
+        """
 
         return self.__circumref_driven_tire(vel=vel) / (2 * math.pi)
 
     def air_res(self, vel: float, drs: bool) -> float:
-        """Velocity input in m/s. Output is in N."""
+        """
+        Velocity input in m/s. Output is in N.
+        """
 
-        # get relevant data
+        # Get relevant data.
         rho_air = self.pars_general["rho_air"]
         c_w_a = self.pars_general["c_w_a"]
 
@@ -253,11 +248,16 @@ class Car(object):
             return 0.5 * c_w_a * rho_air * math.pow(vel, 2)
 
     def roll_res(self, f_z_tot: float) -> float:
-        """Output is in N."""
+        """
+        Output is in N.
+        """
+
         return f_z_tot * self.pars_general["f_roll"]
 
     def calc_lat_forces(self, a_y: float) -> tuple:
-        """Lateral acceleration input in m/s^2. Output forces in N."""
+        """
+        Lateral acceleration input in m/s^2. Output forces in N.
+        """
 
         f_y = self.pars_general["m"] * a_y
         f_y_f = f_y * self.pars_general["lr"] / (self.pars_general["lf"] + self.pars_general["lr"])
@@ -267,32 +267,27 @@ class Car(object):
 
     def v_max_cornering(self, kappa: float, mu: float, vel_subtr_corner: float = 0.5) -> float:
         """
-        Curvature input in rad/m, vel_subtr_corner in m/s. This method determines the maximum drivable velocity for the
-        pure cornering case, i.e. without the application of longitudinal acceleration. However, it is considered that
-        the tires must be able to transmit enough longitudinal forces to overcome drag and rolling resistances. The
-        calculation neglects the available force in the powertrain. The determined velocity is mostly used as velocity
-        after deceleration phases. Using binary search technique to decrease calculation time. vel_subtr_corner is
-        subtracted from the found cornering velocity because drivers in reality will not hit the maximum perfectly.
+        Curvature input in rad/m, vel_subtr_corner in m/s. This method determines the maximum drivable velocity for the pure cornering case, i.e. without the applicaiton of longitudinal acceleration. However, it is considered that the tires must be able to transmit enough longitudinal forces to overcome drag and rolling resistances. The calculation neglects the available force in the powertrain. The determined velocity is mostly used as velocity after deceleration phases. Using binary search technique to decrease calculation time. vel_subtr_corner is subtracted from the found cornering velocity because drivers in reality will not hit the mayimum perfeclty.
         """
 
-        # user input
+        # User input.
         no_steps = 546          # [-] number of steps is currently chosen such that the stepsize is 0.2 m/s
         vel_max = 110.0         # [m/s] cover speed range up to 400 km/h
 
-        # create velocity array
+        # Create velocity array.
         vel_range = np.linspace(1.0, vel_max, no_steps)
 
-        # binary search for maximum velocity
+        # Binary search for maximum velocity.
         ind_first = 0
         ind_last = vel_range.size - 1
         ind_mid = math.ceil((ind_first + ind_last) / 2)
 
         while ind_first != ind_last:
-            # calculate currently acting lateral acceleration and forces
+            # Calculate currently acting lateral acceleration and forces.
             a_y = math.pow(vel_range[ind_mid], 2) * kappa
             f_y_f, f_y_r = self.calc_lat_forces(a_y=a_y)
 
-            # calculate tire force potentials (using a_x = 0.0 at maximum cornering)
+            # Calculate tire force potentials (using a_x = 0.0 at maximum cornering).
             f_x_pot_fl, f_y_pot_fl, f_z_fl, \
                 f_x_pot_fr, f_y_pot_fr, f_z_fr, \
                 f_x_pot_rl, f_y_pot_rl, f_z_rl, \
@@ -301,14 +296,12 @@ class Car(object):
                                                                       a_y=a_y,
                                                                       mu=mu)
 
-            # calculate remaining tire potential at the driven axle(s) for longitudinal force
-            """Axis-wise consideration of the lateral force potential makes sense because it is better to assume that
-            the outer tire gets as worse as the inner tire gets better than to assume that they have to transfer the
-            lateral forces according to the wheel load distribution. This would lead to an underestimation of the
-            maximum possible cornering speed. A more exact model is not possible without considering slip angles, i.e.
-            a kinematic vehicle model."""
+            # Calculate remaining tire potential at the driven axxle(s) for longitudinal force.
+            """
+            Axis-wise consideration of the lateral force potential make sense because it is better to assume that the outer tire gets as worse as the inner tire gets better than to assume that they have to transfer the laterl forces according to the wheel load distribution. This would lead to an underestimation of the maximum possible cornering speed. A more exact model is not possible withoud considering slip angles, i.e. a kinematic vehicle model.
+            """
 
-            # check if potential is left overall and if f_x_poss is enough to overcome drag and rolling resistances
+            # Check if potential is left overall and if f_x_poss is enough to overcome drag and rolling resistances.
             if math.fabs(f_y_f) < f_y_pot_fl + f_y_pot_fr and math.fabs(f_y_r) < f_y_pot_rl + f_y_pot_rr:
                 f_x_poss = self.calc_f_x_pot(f_x_pot_fl=f_x_pot_fl,
                                              f_x_pot_fr=f_x_pot_fr,
@@ -332,15 +325,15 @@ class Car(object):
             else:
                 potential_exceeded = True
 
-            # check if we are above or below force potential and set indices of velocity array accordingly
+            # Check if we are above or below force potential and set indices of velocity array accordingly.
             if not potential_exceeded:
-                # case: potential is left
+                # Case: potential is left.
                 ind_first = ind_mid
             else:
-                # case: potential is exceeded
+                # Case: potential is exceeded.
                 ind_last = ind_mid - 1
 
-            # update middle index
+            # Update middle index.
             ind_mid = math.ceil((ind_first + ind_last) / 2)
 
         return vel_range[ind_mid] - vel_subtr_corner
@@ -356,20 +349,18 @@ class Car(object):
                      f_y_r: float,
                      force_use_all_wheels: bool = False,
                      limit_braking_weak_side: None or str = None) -> float:
-        """Calculate remaining tire potential for longitudinal force transmission considering driven axle(s). All forces
-        in N. 'force_use_all_wheels' flag can be set to use this function also for braking with all four wheels.
-        limit_braking_weak_side can be None, 'FA', 'RA', 'all'. This determines if the possible braking force should be
-        determined based on the weak side, e.g. when braking into a corner. Can be set separately for both axles. This
-        is not necessary during acceleration since a limited slip differential overcomes this problem."""
+        """
+        Calculate remaining tire potential for longitudinal force transmission considering driven axle(s). All forces in N. 'force_use_all_wheels' flag can be set to use this function also for braking with all four wheels. limit_braking_weak_side can be None, 'FA', 'RA', 'all'. This determines if the possible braking force should be determied based on the weak side, e.g. when braking into a corner. Can be set separately for both axles. This is not necessary during acceleration since a limited slip differential overcomes this problem.
+        """
 
         exp_tmp = self.pars_tires["tire_model_exp"]
 
-        # check input
+        # Check input.
         if limit_braking_weak_side is not None and not force_use_all_wheels:
             print("WARNING: It seems like the function is used for braking (because limit_braking_weak_side is set)"
                   " but force_use_all_wheels is not set True!")
 
-        # determine axle potentials
+        # Determine axle potentials.
         if limit_braking_weak_side is not None:
             if limit_braking_weak_side == 'FA':
                 f_x_pot_f = 2 * min(f_x_pot_fl, f_x_pot_fr)
@@ -386,14 +377,14 @@ class Car(object):
             f_x_pot_f = f_x_pot_fl + f_x_pot_fr
             f_x_pot_r = f_x_pot_rl + f_x_pot_rr
 
-        # calculate radicands of the tire model and check if below zero (absolute values of lateral forces required)
+        # Calculate radicands of the tire model and check if below zero (absolute values of lateral forces required).
         radicand_f = 1 - math.pow(math.fabs(f_y_f) / f_y_pot_f, exp_tmp)
         radicand_r = 1 - math.pow(math.fabs(f_y_r) / f_y_pot_r, exp_tmp)
 
         radicand_f = max(radicand_f, 0.0)
         radicand_r = max(radicand_r, 0.0)
 
-        # calculate remaining force potential
+        # Calculate remaining force potential.
         if self.pars_engine["topology"] == "AWD" or force_use_all_wheels:
             f_x_poss_f = f_x_pot_f * math.pow(radicand_f, 1.0 / exp_tmp)
             f_x_poss_r = f_x_pot_r * math.pow(radicand_r, 1.0 / exp_tmp)
@@ -409,23 +400,25 @@ class Car(object):
         return f_x_poss_f + f_x_poss_r
 
     def calc_max_ax(self, vel: float, a_y: float, mu: float, f_y_f: float, f_y_r: float) -> float:
-        """Calculate maximum longitudinal acceleration at which the car stays on the track. vel in m/s, a_y in m/s^2,
-        f_y_f and f_y_r in N. Using binary search technique to decrease calculation time."""
+        """
+        Calculate maximum longitudinal acceleration at which the car stays on the track. vel in m/s, a_y in m/s^2,
+        f_y_f and f_y_r in N. Using binary search technique to decrease calculation time.
+        """
 
-        # user input
+        # User input.
         no_steps = 101
         a_x_max = 25.0  # [m/s^2]
 
-        # create a_x array
+        # Create a_x array.
         a_x_range = np.linspace(0.0, a_x_max, no_steps)
 
-        # binary search
+        # Binary search.
         ind_first = 0
         ind_last = a_x_range.size - 1
         ind_mid = math.ceil((ind_first + ind_last) / 2)
 
         while ind_first != ind_last:
-            # calculate tire potentials at ind_mid
+            # Calculate tire potentials at ind_mid.
             _, f_y_pot_fl, _, \
                 _, f_y_pot_fr, _, \
                 _, f_y_pot_rl, _, \
@@ -434,55 +427,59 @@ class Car(object):
                                                         a_y=a_y,
                                                         mu=mu)
 
-            # check if we are above or below force potential
+            # Check if we are above or below force potential.
             if math.fabs(f_y_f) <= f_y_pot_fl + f_y_pot_fr and math.fabs(f_y_r) <= f_y_pot_rl + f_y_pot_rr:
-                # case: potential is left
+                # Case: potential is left.
                 ind_first = ind_mid
             else:
-                # case: potential is exceeded
+                # Case: potential is exceeded.
                 ind_last = ind_mid - 1
 
-            # update middle index
+            # Update middle index.
             ind_mid = math.ceil((ind_first + ind_last) / 2)
 
         return a_x_range[ind_mid]
 
     def find_gear(self, vel: float) -> tuple:
-        """Velocity input in m/s. Output is the gear used for that velocity (zero based) as well as the corresponding
-        engine rev in 1/s."""
+        """
+        Velocity input in m/s. Output is the gear used for that velocity (zero based) as well as the corresponding
+        engine rev in 1/s.
+        """
 
-        # calculate theoretical engine revs for all the gears
+        # Calculate theoretical engine revs for all the gears.
         n_gears = vel / (self.__circumref_driven_tire(vel=vel) * self.pars_gearbox["i_trans"])  # [1/s]
 
-        # find largest gear below shift revs
+        # Find largest gear below shift revs.
         shift_bool = n_gears < self.pars_gearbox["n_shift"]
 
         if np.all(~shift_bool):
-            # if max rev in final gear is reached do not shift up
-            gear_ind = self.pars_gearbox["n_shift"].size - 1  # -1 due to zero based indexing
+            # If max rev in final gear is reached do not shift up.
+            gear_ind = self.pars_gearbox["n_shift"].size - 1  # -1 due to zero based indexing.
         else:
-            # find first True value (zero based indexing of gears)
+            # Find first True value (zero based indexing of gears).
             gear_ind = int(np.argmax(shift_bool))
 
         return gear_ind, n_gears[gear_ind]
 
     def calc_m_requ(self, f_x: float, vel: float) -> float:
-        """Function to calculate required powertrain torque to reach a specific longitudinal acceleration force f_x at
-        the current velocity. Input f_x in N, vel in m/s. Output is the rquired powertrain torque in Nm."""
+        """
+        Function to calculate required powertrain torque to reach a specific longitudinal acceleration force f_x at
+        the current velocity. Input f_x in N, vel in m/s. Output is the rquired powertrain torque in Nm.
+        """
 
-        # get gear at velocity
+        # Get gear at velocity.
         gear = self.find_gear(vel=vel)[0]
 
-        # calculate powertrain torque
+        # Calculate powertrain torque.
         m_requ = (f_x * self.r_driven_tire(vel=vel) * self.pars_gearbox["i_trans"][gear]
                   * self.pars_gearbox["e_i"][gear] / self.pars_gearbox["eta_g"])
 
         return m_requ
 
-
 # ----------------------------------------------------------------------------------------------------------------------
 # TESTING --------------------------------------------------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------------------------------------
+
 
 if __name__ == "__main__":
     pass
