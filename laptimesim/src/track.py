@@ -41,7 +41,7 @@ class Track(object):
     def __init__(self, pars_track: dict, parfilepath: str, trackfilepath: str, vel_lim_glob: float = np.inf,
                  yellow_s1: bool = False, yellow_s2: bool = False, yellow_s3: bool = False):
 
-        # save given track parameters, load track parameters and append the relevant ones to pars_track
+        # Save given track parameters, load track parameters and append the relevant ones to pars_track.
         self.pars_track = pars_track
 
         parser = configparser.ConfigParser()
@@ -53,10 +53,10 @@ class Track(object):
 
         self.pars_track.update(pars_track_tmp[self.pars_track["trackname"]])
 
-        # load raceline
+        # Load raceline.
         self.raceline = np.loadtxt(trackfilepath, comments='#', delimiter=',')
 
-        # set friction values artificially as long as no real friction values available and limit them to a valid range
+        # Set friction values artificially as long as no real friction values available and limit them to a valid range.
         self.mu = np.ones(self.raceline.shape[0]) * self.pars_track["mu_mean"] * self.pars_track["mu_weather"]
 
         if np.any(self.mu < 0.5) or np.any(self.mu > 1.3):
@@ -69,22 +69,22 @@ class Track(object):
             self.raceline = np.flipud(self.raceline)
             self.mu = np.flipud(self.mu)
 
-        # prepare raceline (interpolation, distance and curvature calculation)
+        # Prepare raceline (interpolation, distance and curvature calculation).
         self.__prep_raceline()
 
-        # set sector boundaries
-        self.zone_inds = {}  # initialize zone_inds
+        # Set sector boundaries.
+        self.zone_inds = {}  # initialize zone_inds.
         self.__get_zone_bounds()
 
-        # set speed limits
-        self.vel_lim = np.full(self.no_points, vel_lim_glob)  # [m/s] contains speed limit for whole track
+        # Set speed limits.
+        self.vel_lim = np.full(self.no_points, vel_lim_glob)  # [m/s] contains speed limit for whole track.
         self.__set_pitspeed_limit()
 
-        # set DRS
-        self.drs = np.full(self.no_points, False)  # bool array contains the points where DRS is activated
+        # Set DRS.
+        self.drs = np.full(self.no_points, False)  # bool array contains the points where DRS is activated.
         self.__set_drs()
 
-        # adjust DRS zones to possible yellow flags
+        # Adjust DRS zones to possible yellow flags.
         self.__adj_drs_yellow_flag(yellow_s1=yellow_s1,
                                    yellow_s2=yellow_s2,
                                    yellow_s3=yellow_s3)
@@ -205,20 +205,20 @@ class Track(object):
         raceline. Raceline is an unclosed array containing x and y coords: [x, y]. stepsize_des is the desired stepsize
         after interpolation. Curvature is in rad/m."""
 
-        # get spline coefficients (use inserted raceline as basis for the splines)
+        # Get spline coefficients (use inserted raceline as basis for the splines).
         raceline_cl = np.vstack((self.raceline, self.raceline[0]))
 
         coeffs_x_cl, coeffs_y_cl = tph.calc_splines.calc_splines(path=raceline_cl,
                                                                  use_dist_scaling=True)[:2]
 
-        # calculate spline lengths and distances to points before interpolation
+        # Calculate spline lengths and distances to points before interpolation.
         spline_lenghts_cl = tph.calc_spline_lengths.calc_spline_lengths(coeffs_x=coeffs_x_cl,
                                                                         coeffs_y=coeffs_y_cl,
                                                                         quickndirty=False)
 
         dists_cl_preinterp = np.insert(np.cumsum(spline_lenghts_cl), 0, 0.0)
 
-        # interpolate splines to the desired (equal) stepsize (now unclosed raceline)
+        # Interpolate splines to the desired (equal) stepsize (now unclosed raceline).
         self.raceline, ind_spls, t_spls, dists_interp = tph.interp_splines.\
             interp_splines(spline_lengths=spline_lenghts_cl,
                            coeffs_x=coeffs_x_cl,
@@ -226,73 +226,73 @@ class Track(object):
                            incl_last_point=False,
                            stepsize_approx=self.pars_track["interp_stepsize_des"])
 
-        # save stepsize
+        # Save stepsize.
         self.stepsize = dists_interp[1] - dists_interp[0]
 
-        # save distances to every point
+        # Save distances to every point.
         self.dists_cl = np.append(dists_interp, dists_cl_preinterp[-1])
 
-        # save number of points
+        # Save number of points.
         self.no_points = self.raceline.shape[0]
         self.no_points_cl = self.no_points + 1
 
-        # (linear) interpolation of friction values that matched the originally inserted raceline
+        # (linear) interpolation of friction values that matched the originally inserted raceline.
         mu_preinterp_cl = np.append(self.mu, self.mu[0])
         self.mu = np.interp(self.dists_cl[:-1], dists_cl_preinterp, mu_preinterp_cl)  # unclosed
 
-        # calculate curvature profile (unclosed)
+        # Calculate curvature profile (unclosed).
         self.kappa = tph.calc_head_curv_an.calc_head_curv_an(coeffs_x=coeffs_x_cl,
                                                              coeffs_y=coeffs_y_cl,
                                                              ind_spls=ind_spls,
                                                              t_spls=t_spls)[1]
 
-        # smooth curvature profile if desired
+        # Smooth curvature profile if desired.
         if self.pars_track["curv_filt_width"] is not None and self.pars_track["curv_filt_width"] > self.stepsize:
 
-            # calculate window size of convolution filter based on desired filter width (+1 to include middle point)
+            # Calculate window size of convolution filter based on desired filter width (+1 to include middle point).
             window_size = int(round(self.pars_track["curv_filt_width"] / self.stepsize)) + 1
 
-            # handle case that window_size is not odd
+            # Handle case that window_size is not odd.
             if window_size % 2 == 0:
                 print("WARNING: Convolution filter window size for kappa is set to %i instead of %i (must be odd)"
                       % (window_size + 1, window_size))
                 window_size += 1
 
-            # apply filter
+            # Apply filter.
             self.kappa = tph.conv_filt.conv_filt(signal=self.kappa,
                                                  filt_window=window_size,
                                                  closed=True)
 
     def __get_zone_bounds(self) -> None:
-        # sectors ------------------------------------------------------------------------------------------------------
-        # set indices
+        # Sectors ------------------------------------------------------------------------------------------------------
+        # Set indices.
         self.zone_inds["s12"] = np.argmin(np.abs(self.pars_track["s12"] - self.dists_cl))
         self.zone_inds["s23"] = np.argmin(np.abs(self.pars_track["s23"] - self.dists_cl))
 
-        # pit ----------------------------------------------------------------------------------------------------------
-        # initialize pit zone indices
+        # Pit ----------------------------------------------------------------------------------------------------------
+        # Initialize pit zone indices.
         self.zone_inds["pit_in"] = 0
         self.zone_inds["pit_out"] = 0
 
-        # check if pit zone is set properly
+        # Check if pit zone is set properly.
         if self.pars_track["use_pit"] and (math.isclose(self.pars_track["pit_in"], 0.0)
                                            or math.isclose(self.pars_track["pit_out"], 0.0)):
             print("WARNING: Pit zone is not set properly. Therefore, pit stop gets deactivated!")
             self.pars_track["use_pit"] = False
 
-        # set indices
+        # Set indices.
         if self.pars_track["use_pit"]:
             self.zone_inds["pit_in"] = np.argmin(np.abs(self.pars_track["pit_in"] - self.dists_cl))
             self.zone_inds["pit_out"] = np.argmin(np.abs(self.pars_track["pit_out"] - self.dists_cl))
 
-        # drs ----------------------------------------------------------------------------------------------------------
-        # initialize drs zone indices
+        # DRS ----------------------------------------------------------------------------------------------------------
+        # Initialize drs zone indices.
         self.zone_inds["drs1_a"] = 0
         self.zone_inds["drs1_d"] = 0
         self.zone_inds["drs2_a"] = 0
         self.zone_inds["drs2_d"] = 0
 
-        # check if drs zones are set properly
+        # Check if drs zones are set properly.
         if self.pars_track["use_drs1"] and (math.isclose(self.pars_track["drs1_act"], 0.0)
                                             or math.isclose(self.pars_track["drs1_deact"], 0.0)):
             print("WARNING: DRS zone 1 is not set properly. Therefore, DRS is deactivated in zone 1!")
@@ -303,7 +303,7 @@ class Track(object):
             print("WARNING: DRS zone 2 is not set properly. Therefore, DRS is deactivated in zone 2!")
             self.pars_track["use_drs2"] = False
 
-        # set indices
+        # Set indices.
         if self.pars_track["use_drs1"]:
             self.zone_inds["drs1_a"] = np.argmin(np.abs(self.pars_track["drs1_act"] - self.dists_cl))
             self.zone_inds["drs1_d"] = np.argmin(np.abs(self.pars_track["drs1_deact"] - self.dists_cl))
@@ -318,28 +318,28 @@ class Track(object):
             self.vel_lim[self.zone_inds["pit_in"]:] = self.pars_track["pitspeed"]
 
     def __set_drs(self) -> None:
-        # check if pit stop causes DRS deactivation in zone 1
+        # Check if pit stop causes DRS deactivation in zone 1.
         if self.pars_track["use_pit"]:
             print("WARNING: DRS zone 1 gets deactivated due to pit stop!")
             self.pars_track["use_drs1"] = False
 
-        # DRS zone 1
+        # DRS zone 1.
         if self.pars_track["use_drs1"]:
             if self.zone_inds["drs1_a"] < self.zone_inds["drs1_d"]:
-                # common case
+                # common case.
                 self.drs[self.zone_inds["drs1_a"]:self.zone_inds["drs1_d"]] = True
             else:
-                # DRS zone is split by start/finish line
+                # DRS zone is split by start/finish line.
                 self.drs[self.zone_inds["drs1_a"]:] = True
                 self.drs[:self.zone_inds["drs1_d"]] = True
 
-        # DRS zone 2
+        # DRS zone 2.
         if self.pars_track["use_drs2"]:
             if self.zone_inds["drs2_a"] < self.zone_inds["drs2_d"]:
-                # common case
+                # common case.
                 self.drs[self.zone_inds["drs2_a"]:self.zone_inds["drs2_d"]] = True
             else:
-                # DRS zone is split by start/finish line
+                # DRS zone is split by start/finish line.
                 self.drs[self.zone_inds["drs2_a"]:] = True
                 self.drs[:self.zone_inds["drs2_d"]] = True
 
@@ -375,26 +375,26 @@ class Track(object):
         kappa contains the curvature in rad/m. stepsize is the stepsize after interpolation in m. heading_start is in
         rad."""
 
-        # create required arrays
+        # Create required arrays.
         raceline_re = np.zeros((self.no_points, 2))
         phi_re = np.zeros(self.no_points)
 
-        # calculate start heading of original track
+        # Calculate start heading of original track.
         dx = self.raceline[1, 0] - self.raceline[0, 0]
         dy = self.raceline[1, 1] - self.raceline[0, 1]
         heading_start = math.atan2(dy, dx) - 0.5 * math.pi
 
-        # set initial heading such that origin is "north" along the y-axis and start point is equal to original track
+        # Set initial heading such that origin is "north" along the y-axis and start point is equal to original track.
         phi_re[0] = 0.5 * np.pi + heading_start
         raceline_re[0] = self.raceline[0]
 
-        # calculate raceline points based on curvature according to Velenis 2005 DOI: 10.1109/ACC.2005.1470288
+        # Calculate raceline points based on curvature according to Velenis 2005 DOI: 10.1109/ACC.2005.1470288.
         for i in range(self.no_points - 1):
             phi_re[i + 1] = phi_re[i] + (self.kappa[i] + self.kappa[i + 1]) / 2 * self.stepsize  # heading
             raceline_re[i + 1, 0] = raceline_re[i, 0] + math.cos((phi_re[i + 1] + phi_re[i]) / 2) * self.stepsize  # x
             raceline_re[i + 1, 1] = raceline_re[i, 1] + math.sin((phi_re[i + 1] + phi_re[i]) / 2) * self.stepsize  # y
 
-        # plot results
+        # Plot results.
         plt.figure()
         plt.plot(self.raceline[:, 0], self.raceline[:, 1])
         plt.plot(raceline_re[:, 0], raceline_re[:, 1])
@@ -421,18 +421,18 @@ class Track(object):
         fig = plt.figure()
         ax1 = fig.add_subplot(111)
 
-        # plot raceline
+        # Plot raceline.
         ax1.plot(self.raceline[:, 0], self.raceline[:, 1], "k-")
 
-        # plot DRS zones
+        # Plot DRS zones.
         if self.pars_track["use_drs1"]:
             if self.zone_inds["drs1_a"] < self.zone_inds["drs1_d"]:
-                # common case
+                # Common case.
                 ax1.plot(self.raceline[self.zone_inds["drs1_a"]:self.zone_inds["drs1_d"], 0],
                          self.raceline[self.zone_inds["drs1_a"]:self.zone_inds["drs1_d"], 1],
                          "g--", linewidth=3.0)
             else:
-                # DRS zone is split by start/finish line
+                # DRS zone is split by start/finish line.
                 ax1.plot(self.raceline[self.zone_inds["drs1_a"]:, 0],
                          self.raceline[self.zone_inds["drs1_a"]:, 1],
                          "g--", linewidth=3.0)
@@ -442,12 +442,12 @@ class Track(object):
 
         if self.pars_track["use_drs2"]:
             if self.zone_inds["drs2_a"] < self.zone_inds["drs2_d"]:
-                # common case
+                # Common case.
                 ax1.plot(self.raceline[self.zone_inds["drs2_a"]:self.zone_inds["drs2_d"], 0],
                          self.raceline[self.zone_inds["drs2_a"]:self.zone_inds["drs2_d"], 1],
                          "g--", linewidth=3.0)
             else:
-                # DRS zone is split by start/finish line
+                # DRS zone is split by start/finish line.
                 ax1.plot(self.raceline[self.zone_inds["drs2_a"]:, 0],
                          self.raceline[self.zone_inds["drs2_a"]:, 1],
                          "g--", linewidth=3.0)
@@ -455,7 +455,7 @@ class Track(object):
                          self.raceline[:self.zone_inds["drs2_d"], 1],
                          "g--", linewidth=3.0)
 
-        # plot pit
+        # Plot pit.
         if self.pars_track["use_pit"]:
             ax1.plot(self.raceline[:self.zone_inds["pit_out"], 0],
                      self.raceline[:self.zone_inds["pit_out"], 1],
@@ -464,13 +464,13 @@ class Track(object):
                      self.raceline[self.zone_inds["pit_in"]:, 1],
                      "r--", linewidth=3.0)
 
-        # plot arrow showing the driving direction
+        # Plot arrow showing the driving direction.
         ax1.arrow(self.raceline[0, 0], self.raceline[0, 1],
                   self.raceline[10, 0] - self.raceline[0, 0],
                   self.raceline[10, 1] - self.raceline[0, 1],
                   head_width=30.0, width=10.0)
 
-        # plot dots at start/finish and at the sector boundaries
+        # Plot dots at start/finish and at the sector boundaries.
         ax1.plot(self.raceline[0, 0], self.raceline[0, 1], "k.", markersize=13.0)
         ax1.plot(self.raceline[self.zone_inds["s12"], 0],
                  self.raceline[self.zone_inds["s12"], 1], "k.", markersize=13.0)
@@ -482,11 +482,11 @@ class Track(object):
         ax1.set_xlabel("x in m")
         ax1.set_ylabel("y in m")
 
-        # create empty handles for text and point to be able to click within plot
+        # Create empty handles for text and point to be able to click within plot.
         txt_handle = ax1.text(0.05, 0.95, "Track distance of selected point: ", transform=plt.gcf().transFigure)
         pt_handle = ax1.plot([], [], "r.", markersize=13.0)[0]
 
-        # set track picture as background
+        # Set track picture as background.
         if mapfilepath:
             x_min = np.amin(self.raceline[:, 0])
             x_max = np.amax(self.raceline[:, 0])
@@ -494,9 +494,9 @@ class Track(object):
             y_max = np.amax(self.raceline[:, 1])
 
             img = plt.imread(mapfilepath)
-            ax1.imshow(img, zorder=0, extent=[x_min, x_max, y_min, y_max])  # [left, right, bottom, top]
+            ax1.imshow(img, zorder=0, extent=[x_min, x_max, y_min, y_max])  # [left, right, bottom, top].
 
-        # connect to canvas to be able to click within plot
+        # Connect to canvas to be able to click within plot.
         fig.canvas.mpl_connect('button_press_event', lambda event: self.__onpick(event=event,
                                                                                  pt_handle=pt_handle,
                                                                                  txt_handle=txt_handle,
@@ -505,20 +505,20 @@ class Track(object):
         plt.show()
 
     def __onpick(self, event, pt_handle, txt_handle, fig_handle):
-        # get position of click event
+        # Get position of click event.
         pos_click = [event.xdata, event.ydata]
 
-        # determine nearest point on track
+        # Determine nearest point on track.
         dists = math.hypot(self.raceline[:, 0] - pos_click[0], self.raceline[:, 1] - pos_click[1])
         ind = np.argpartition(dists, 1)[0]
         cur_node = self.raceline[ind]
         cur_dist = self.dists_cl[ind]
 
-        # update position of text and point handles
+        # Update position of text and point handles.
         pt_handle.set_data(cur_node[0], cur_node[1])
         txt_handle.set_text("Track distance of selected point: %.0fm" % cur_dist)
 
-        # re-draw figure
+        # Re-draw figure.
         fig_handle.canvas.draw()
 
 
