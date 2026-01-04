@@ -44,7 +44,7 @@ class Driver(object):
         # ENERGY MANAGEMENT --------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
 
-        # set initial energy management strategy -> em_boost_use contains where e_motor boost can be applied
+        # Set initial energy management strategy -> em_boost_use contains where e_motor boost can be applied.
         if self.pars_driver["em_strategy"] == "FCFB":
             self.em_boost_use = np.full(trackobj.no_points, True)
         elif self.pars_driver["em_strategy"] in ["LBP", "LS", "NONE"]:
@@ -62,7 +62,7 @@ class Driver(object):
         # THROTTLE POSITION --------------------------------------------------------------------------------------------
         # --------------------------------------------------------------------------------------------------------------
 
-        # initialize array containing the throttle actuation for the consideration of yellow flags. Furthermore, it is
+        # Initialize array containing the throttle actuation for the consideration of yellow flags. Furthermore, it is
         # used for "lift and coast" consideration later on.
         self.throttle_pos = np.ones(trackobj.no_points)
 
@@ -140,7 +140,7 @@ class Driver(object):
                                es_final=es_final)
 
         elif self.pars_driver["em_strategy"] == "FCFB" and self.pars_driver["use_lift_coast"]:
-            # set array where throttle is 0.0 when driving in lift and coast condition
+            # Set array where throttle is 0.0 when driving in lift and coast condition.
             self.__lift_coast(vel_cl=vel_cl,
                               n_lac=self.no_points_lac)
 
@@ -153,15 +153,15 @@ class Driver(object):
         on the conservative side as the recalculated velocity profil will be faster and therefore the times of
         appliance will get shorter."""
 
-        # input check: energy store
+        # Input check: energy store.
         if es_final < 0.0:
             print("WARNING: ES charge state already negative when entering EM strategy calculation!")
 
-        # find indices of brake points
+        # Find indices of brake points.
         inds_brake = np.squeeze(np.argwhere(np.diff(vel_cl) < 0.0))
 
-        # calculate time until next brake point for every point (0.0 for brake points themself)
-        no_points = t_cl.size - 1  # - 1 to get number of points for unclosed lap
+        # Calculate time until next brake point for every point (0.0 for brake points themself).
+        no_points = t_cl.size - 1  # - 1 to get number of points for unclosed lap.
         t_until_brake = np.zeros(no_points)
 
         for i in range(no_points):
@@ -172,24 +172,24 @@ class Driver(object):
                 ind_brake_rel = inds_brake[0]
                 t_until_brake[i] = t_cl[-1] - t_cl[i] + t_cl[ind_brake_rel]
 
-        # sort t_until_brake and get indices (minus sign to sort in a descending order)
+        # Sort t_until_brake and get indices (minus sign to sort in a descending order).
         inds_sorted = list(np.argsort(-t_until_brake))
 
         while es_final > 0.0 and len(inds_sorted) > 0:
-            # get current index and remove it from indices list
+            # Get current index and remove it from indices list.
             ind_cur = inds_sorted.pop(0)
 
-            # check if a brake point would be used (case when too much energy available) -> if so break
+            # Check if a brake point would be used (case when too much energy available) -> if so break.
             if math.isclose(t_until_brake[ind_cur], 0.0):
                 self.em_boost_use = np.full(no_points, True)
                 break
 
-            # apply boost if boost was not applied here so far
+            # Apply boost if boost was not applied here so far.
             if not self.em_boost_use[ind_cur]:
-                # apply boost here
+                # Apply boost here.
                 self.em_boost_use[ind_cur] = True
 
-                # calculate torque distribution within the hybrid system
+                # Calculate torque distribution within the hybrid system.
                 m_e_motor = self.carobj.calc_torque_distr(n=n_cl[ind_cur],
                                                           m_requ=m_requ[ind_cur],
                                                           throttle_pos=self.throttle_pos[ind_cur],
@@ -197,7 +197,7 @@ class Driver(object):
                                                           em_boost_use=True,
                                                           vel=vel_cl[ind_cur])[1]
 
-                # update energy store status (approximation because velocity profile is influenced obviously)
+                # Update energy store status (approximation because velocity profile is influenced obviously).
                 es_final -= (self.carobj.power_demand_e_motor_drive(n=n_cl[ind_cur],
                                                                     m_e_motor=np.array(m_e_motor))
                              * (t_cl[ind_cur + 1] - t_cl[ind_cur]))
@@ -208,23 +208,23 @@ class Driver(object):
         side as the recalculated velocity profil will be faster and therefore the times of appliance will get
         shorter."""
 
-        # input check: energy store
+        # Input check: energy store.
         if es_final < 0.0:
             print("WARNING: ES charge state already negative when entering EM strategy calculation!")
 
-        # sort vel and get indices
+        # Sort vel and get indices.
         inds_sorted = list(np.argsort(vel_cl[:-1]))
 
         while es_final > 0.0 and len(inds_sorted) > 0:
-            # get current index and remove it from indices list
+            # Get current index and remove it from indices list.
             ind_cur = inds_sorted.pop(0)
 
-            # apply boost if boost was not applied here so far
+            # Apply boost if boost was not applied here so far.
             if not self.em_boost_use[ind_cur]:
-                # apply boost here
+                # Apply boost here.
                 self.em_boost_use[ind_cur] = True
 
-                # calculate torque distribution within the hybrid system
+                # Calculate torque distribution within the hybrid system.
                 m_e_motor = self.carobj.calc_torque_distr(n=n_cl[ind_cur],
                                                           m_requ=m_requ[ind_cur],
                                                           throttle_pos=self.throttle_pos[ind_cur],
@@ -232,7 +232,7 @@ class Driver(object):
                                                           em_boost_use=True,
                                                           vel=vel_cl[ind_cur])[1]
 
-                # update energy store status (approximation because velocity profile is influenced obviously)
+                # Update energy store status (approximation because velocity profile is influenced obviously).
                 es_final -= (self.carobj.power_demand_e_motor_drive(n=n_cl[ind_cur],
                                                                     m_e_motor=np.array(m_e_motor))
                              * (t_cl[ind_cur + 1] - t_cl[ind_cur]))
@@ -245,13 +245,13 @@ class Driver(object):
         inds_neg_vel_diff = np.squeeze(np.argwhere(vel_diffs < 0.0))
 
         for i in inds_neg_vel_diff:
-            # catch case that lift&coast starts in front of start/finish line
+            # Catch case that lift&coast starts in front of start/finish line.
             if i - n_lac < 0:
                 self.throttle_pos[no_points + i - n_lac:] = 0.0
-                # current point is not included to allow acceleration directly after last brakepoint
+                # Current point is not included to allow acceleration directly after last brakepoint.
                 self.throttle_pos[0:i] = 0.0
             else:
-                # current point is not included to allow acceleration directly after last brakepoint
+                # Current point is not included to allow acceleration directly after last brakepoint.
                 self.throttle_pos[i - n_lac:i] = 0.0
 
 
